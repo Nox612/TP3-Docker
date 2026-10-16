@@ -1,0 +1,106 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for roles/docker
+
+# Install prerequisites for Docker
+- name: Install required packages
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+      - python3-venv
+    state: latest
+    update_cache: yes
+
+
+# Add Docker’s official GPG key
+- name: Add Docker GPG key
+  apt_key:
+    url: https://download.docker.com/linux/debian/gpg
+    state: present
+
+# Set up the Docker stable repository
+- name: Add Docker APT repository
+  apt_repository:
+    repo: "deb [arch=amd64] https://download.docker.com/linux/debian {{ ansible_facts['distribution_release'] }} stable"
+    state: present
+    update_cache: yes
+
+# Install Docker
+- name: Install Docker
+  apt:
+    name: docker-ce
+    state: present
+
+
+# Install Python3 and pip3
+- name: Install Python3 and pip3
+  apt:
+    name:
+      - python3
+      - python3-pip
+    state: present
+
+
+# Create a virtual environment for Python packages
+- name: Create a virtual environment for Docker SDK
+  command: python3 -m venv /opt/docker_venv
+  args:
+    creates: /opt/docker_venv  # Only runs if this directory doesn’t exist
+
+
+# Install Docker SDK for Python in the virtual environment
+- name: Install Docker SDK for Python in virtual environment
+  command: /opt/docker_venv/bin/pip install docker
+
+
+# Ensure Docker is running
+- name: Make sure Docker is running
+  service:
+    name: docker
+    state: started
+  tags: docker
+
+- name: Create network
+  docker_network:
+    name: app-network
+
+- name: Run HTTPD
+  docker_container:
+    name: httpd
+    image: doff6122/my-httpd:1.0
+    state: started
+    ports:
+      - "80:80"
+    networks:
+      - name: app-network
+
+- name: Run Database
+  docker_container:
+    name: database
+    image: doff6122/my-database:1.0
+    state: started
+    networks:
+      - name: app-network
+
+- name: Run Backend
+  docker_container:
+    name: backend
+    image: doff6122/my-backend:1.0
+    state: started
+    networks:
+      - name: app-network
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/db
+
+- name: Run Frontend
+  docker_container:
+    name: frontend
+    image: doff6122/my-frontend:1.0
+    state: started
+    networks:
+      - name: app-network
+
